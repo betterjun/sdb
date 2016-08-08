@@ -10,12 +10,12 @@ func TestFunction(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 
 	db := New("mysql")
-	err := db.Open("root:@tcp(127.0.0.1:3306)")
+	err := db.Open("root:root@tcp(127.0.0.1:3306)/world")
 	if err != nil {
 		t.Error(err)
 	}
 
-	sql := ""
+	sql := "select * from tb_new_table"
 	q, err := db.CreateQuery(sql)
 	if err != nil {
 		t.Error(err)
@@ -27,16 +27,36 @@ func TestFunction(t *testing.T) {
 	}
 
 	type result struct {
-		id   int
-		name string
+		SId  int `orm:"id"`
+		Name string
 	}
 	res := &result{}
 	err = q.Next(res)
 	if err != nil {
 		t.Error(err)
 	}
-
 	t.Log(*res)
+
+	err = q.Next(res)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(*res)
+
+	err = q.Next(res)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(*res)
+
+	rs := make([]interface{}, 10)
+	rs[0] = res
+	rs, err = q.BatchNext(rs, 10)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(rs)
 }
 
 /*

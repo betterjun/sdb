@@ -18,8 +18,7 @@ type Query struct {
 }
 
 func (q *Query) unpack(ptr interface{}) (scanArgs []interface{}) {
-	// Build map of fields keyed by effective name.
-	fields := make(map[string]reflect.Value)
+	fields := make(map[string]interface{})
 	v := reflect.ValueOf(ptr).Elem() // the struct variable
 	for i := 0; i < v.NumField(); i++ {
 		fieldInfo := v.Type().Field(i) // a reflect.StructField
@@ -28,30 +27,31 @@ func (q *Query) unpack(ptr interface{}) (scanArgs []interface{}) {
 		if name == "" {
 			name = strings.ToLower(fieldInfo.Name)
 		}
-		fields[name] = v.Field(i)
+		// take the addr and as interface{}, this is required by sql Scan
+		fields[name] = v.Field(i).Addr().Interface()
 	}
 
-	// Update struct field for each parameter in the request.
 	for _, name := range q.cols {
 		f := fields[name]
-		if !f.IsValid() {
-			continue // ignore unrecognized orm parameters
-		}
-		scanArgs = append(scanArgs, fields[name].Addr())
+		scanArgs = append(scanArgs, f)
 	}
-	return nil
+	fmt.Println(scanArgs)
+	return scanArgs
 }
 
 func (q *Query) Exec(args ...interface{}) (err error) {
-	rows, err := q.stmt.Query(args)
+	if len(args) == 0 {
+		q.rows, err = q.stmt.Query()
+	} else {
+		q.rows, err = q.stmt.Query(args)
+	}
 	if err != nil {
 		return err
 	}
-	q.rows = rows
 	//c = &Cursor{rows: rows, db: q.db}
 
 	// 根据反射，处理obj的字段，在rows.Column中就输出
-	q.cols, err = rows.Columns()
+	q.cols, err = q.rows.Columns()
 	if err != nil {
 		return err
 	}
@@ -66,6 +66,7 @@ func (q *Query) Next(ptr interface{}) (err error) {
 
 	if q.rows.Next() {
 		err = q.rows.Scan(scanArgs...)
+		fmt.Println("ptr=", ptr)
 		return err
 	} else {
 		return fmt.Errorf("the last one found")
@@ -73,19 +74,26 @@ func (q *Query) Next(ptr interface{}) (err error) {
 }
 
 // objs must have one object
-func (q *Query) BatchNext(objs []interface{}, size int) (err error) {
-	scanArgs := q.unpack(objs[0])
+func (q *Query) BatchNext(objs []interface{}, size int) (ret []interface{}, err error) {
+	arg := objs[0]
+	scanArgs := q.unpack(arg)
 	if scanArgs == nil {
-		return fmt.Errorf("no fields found in the objptr")
+		return nil, fmt.Errorf("no fields found in the objptr")
 	}
 
+	var c int = 0
 	for q.rows.Next() {
+		fmt.Println("BatchNext")
 		err = q.rows.Scan(scanArgs...)
 		if err != nil {
-			return err
+			fmt.Println("return", objs)
+			return objs, err
 		}
 
-		objs = append(objs, objs[0])
+		//objs = append(objs, arg)
+		objs[c] = arg
+		c++
 	}
-	return err
+	fmt.Println(objs)
+	return objs, err
 }
