@@ -8,8 +8,38 @@ import (
 
 func TestFunction(t *testing.T) {
 	rand.Seed(time.Now().Unix())
+
+	db := New("mysql")
+	err := db.Open("root:@tcp(127.0.0.1:3306)")
+	if err != nil {
+		t.Error(err)
+	}
+
+	sql := ""
+	q, err := db.CreateQuery(sql)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = q.Exec()
+	if err != nil {
+		t.Error(err)
+	}
+
+	type result struct {
+		id   int
+		name string
+	}
+	res := &result{}
+	err = q.Next(res)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(*res)
 }
 
+/*
 type ChangeInfo struct {
 }
 
@@ -39,3 +69,4 @@ type Cursor interface {
 	Next(obj interface{}) error
 	GetAll(obj []interface{}) error
 }
+*/
